@@ -248,18 +248,22 @@ function safeCellStart(table, r, c) {
     { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 6, columnIndex: 2 }, rowSpan: 1, columnSpan: 3 } } }
   ]);
 
-  // 왼쪽 라벨 칸(0열) 폭 줄이기 — 내용 칸에 공간 더 확보
+  // 열 너비를 5개 열 전체 명시적으로 지정
+  // (0:라벨 / 1:시간·이름 값 / 2:시수 / 3:부서명 라벨 / 4:부서명 값)
+  // 1열을 넉넉히 잡아서 "09시 00분 ~ 18시 00분"이나 "김호한 (서명 또는 인)"이 한 줄에 들어가게 함
   console.log("열 너비 조정 중...");
-  runBatchUpdate(documentId, [
-    {
+  const COLUMN_WIDTHS = [60, 150, 60, 65, 115]; // 합계 약 450pt (A4 본문 폭 기준)
+  runBatchUpdate(
+    documentId,
+    COLUMN_WIDTHS.map((w, i) => ({
       updateTableColumnProperties: {
         tableStartLocation: tableStart,
-        columnIndices: [0],
-        tableColumnProperties: { widthType: 'FIXED_WIDTH', width: { magnitude: 65, unit: 'PT' } },
+        columnIndices: [i],
+        tableColumnProperties: { widthType: 'FIXED_WIDTH', width: { magnitude: w, unit: 'PT' } },
         fields: '*'
       }
-    }
-  ]);
+    }))
+  );
 
   // 실습내용/소감 행 높이 늘리기 (A4 양식 참고 - 여백 있는 형태)
   console.log("행 높이 조정 중...");
