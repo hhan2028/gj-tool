@@ -20,7 +20,6 @@ const ask = (q, defaultValue) => new Promise((resolve) => {
   });
 });
 
-// "취소"라고 직접 입력해도 문서 생성 전에 안전하게 종료 (Ctrl+C의 보조 수단)
 function checkCancel(input) {
   if (input.trim() === '취소') {
     console.log('\n🛑 취소되었습니다. 문서를 만들지 않고 종료합니다.');
@@ -87,7 +86,6 @@ function toDateDigits(dateStr) {
   return `${y}${mo.padStart(2, '0')}${da.padStart(2, '0')}`;
 }
 
-// 실습시간 1/2/3 선택 옵션
 const TIME_OPTIONS = {
   '1': { time: '09시 00분 ~ 18시 00분', hours: '8시간' },
   '2': { time: '09시 00분 ~ 14시 00분', hours: '4시간' },
@@ -107,10 +105,19 @@ async function callGemini(prompt) {
   return data?.candidates?.[0]?.content?.parts?.[0]?.text;
 }
 
-async function expandContent(keyword) {
-  const prompt = `다음은 장애인 거주시설 사회복지 실습일지의 "실습내용" 작성을 위한 키워드다. 키워드는 쉼표(,)로 여러 개가 나열되어 있을 수 있다.
-키워드가 몇 개든 관계없이, 격식 있고 전문적인 문장으로 **정확히 5줄(5문장)**을 작성해줘. 각 문장은 간결하게 써줘.
-시간대(예: 09:00~)나 번호, 기호(- 등)는 절대로 붙이지 말고, 순수 문장만 줄바꿈으로 구분해서 5줄만 출력해.
+async function expandContent(keyword, timeInfo) {
+  const prompt = `다음은 장애인 거주시설 사회복지 실습일지의 "실습내용"을 쓰기 위한 키워드야. 키워드는 쉼표(,)로 여러 개 나열되어 있을 수 있어.
+이 실습은 ${timeInfo.time} 동안 진행됐어. 문장에 시간대를 직접 언급할 필요는 없지만, 혹시라도 "아침", "오전", "오후", "점심", "저녁" 같은 시간대를 암시하는 표현을 쓰게 된다면 반드시 이 실습시간과 앞뒤가 맞아야 해. 예를 들어 14시~18시 실습인데 "아침"이라고 쓰면 안 돼.
+
+이 키워드들을 바탕으로, 실습생이 그날 현장에서 실제로 겪은 일을 쓰듯이 **구체적이고 자연스러운 문장으로 정확히 5줄(5문장)**을 작성해줘.
+
+지켜야 할 것:
+- '행동 특성을 정밀하게 모니터링하였습니다', '정서적 교감을 도모하였습니다' 같은 추상적이고 딱딱한 표현은 쓰지 마. 실제로 무엇을 했는지 구체적으로 풀어써줘.
+- AI가 정형화된 틀로 찍어낸 것 같은 매끈한 문장 말고, 실습생이 직접 손으로 쓴 것처럼 자연스러운 문어체로 써줘. 문장마다 구조가 비슷하게 반복되지 않게 해줘.
+- 키워드에 있는 내용을 최대한 그대로 살려서 쓰고, 키워드에 없는 내용을 지나치게 부풀리거나 일반화하지 마.
+- 시간대는 위 지침대로 실습시간과 모순되지 않게만 하고, 번호나 기호(- 등)는 쓰지 마.
+- 순수 문장만 줄바꿈으로 구분해서 5줄만 출력해.
+
 키워드: ${keyword}`;
   try {
     const rawText = await callGemini(prompt);
@@ -177,7 +184,7 @@ function safeCellStart(table, r, c) {
   const contentKeyword = await ask("\n실습내용 키워드 입력 (여러 개면 쉼표(,)로 구분): ", "");
   checkCancel(contentKeyword);
   console.log("실습내용 5줄 생성 중...");
-  let { text: content } = await expandContent(contentKeyword);
+  let { text: content } = await expandContent(contentKeyword, timeInfo);
   console.log(`\n[생성된 실습내용 (5줄)]\n${content}\n`);
   const editContent = await ask("이대로 쓸까요? 수정하려면 직접 입력, 그대로면 Enter: ", "");
   checkCancel(editContent);
@@ -214,7 +221,6 @@ function safeCellStart(table, r, c) {
   const createdDoc = createDoc(docTitle);
   const documentId = createdDoc.documentId;
 
-  // A4 용지 크기 명시 설정 (595.3pt x 841.9pt = A4)
   console.log("용지 크기(A4) 설정 중...");
   runBatchUpdate(documentId, [
     {
@@ -240,19 +246,14 @@ function safeCellStart(table, r, c) {
   runBatchUpdate(documentId, [
     { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 0, columnIndex: 0 }, rowSpan: 1, columnSpan: 5 } } },
     { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 1, columnIndex: 1 }, rowSpan: 1, columnSpan: 4 } } },
-    // 2행(실습시간/시수/실습부서명)은 5칸 그대로, 병합하지 않음
     { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 3, columnIndex: 1 }, rowSpan: 1, columnSpan: 4 } } },
     { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 4, columnIndex: 1 }, rowSpan: 1, columnSpan: 4 } } },
     { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 5, columnIndex: 1 }, rowSpan: 1, columnSpan: 4 } } },
-    // 실습지도자 + 서명란은 나누지 않고 하나로 병합
     { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 6, columnIndex: 2 }, rowSpan: 1, columnSpan: 3 } } }
   ]);
 
-  // 열 너비를 5개 열 전체 명시적으로 지정
-  // (0:라벨 / 1:시간·이름 값 / 2:시수 / 3:부서명 라벨 / 4:부서명 값)
-  // 1열을 넉넉히 잡아서 "09시 00분 ~ 18시 00분"이나 "김호한 (서명 또는 인)"이 한 줄에 들어가게 함
   console.log("열 너비 조정 중...");
-  const COLUMN_WIDTHS = [60, 150, 60, 65, 115]; // 합계 약 450pt (A4 본문 폭 기준)
+  const COLUMN_WIDTHS = [60, 150, 60, 65, 115];
   runBatchUpdate(
     documentId,
     COLUMN_WIDTHS.map((w, i) => ({
@@ -265,7 +266,6 @@ function safeCellStart(table, r, c) {
     }))
   );
 
-  // 실습내용/소감 행 높이 늘리기 (A4 양식 참고 - 여백 있는 형태)
   console.log("행 높이 조정 중...");
   runBatchUpdate(documentId, [
     {
