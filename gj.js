@@ -87,7 +87,14 @@ function toDateDigits(dateStr) {
   return `${y}${mo.padStart(2, '0')}${da.padStart(2, '0')}`;
 }
 
-const FALLBACK_CONTENT = "장애인 거주시설 이용인의 건강 증진과 쾌적한 거주 환경 조성을 목적으로 위생 청소 및 환경 정비를 실시하였습니다.\n이용인들의 주거 공간을 점검하고 먼지 제거와 환기를 진행하여 감염병 예방을 위한 청결을 유지하였습니다.\n자립 생활 능력 향상을 위해 이용인이 스스로 개인 공간을 청정하게 유지하도록 맞춤형 청소 활동을 지원하였습니다.\n공용 공간의 집기류를 소독하고 바닥의 이물질을 제거하여 안전한 시설 환경을 조성하였습니다.\n청소 및 위생 관리 과정을 통해 환경 정비가 이용인의 삶의 질 향상과 직결된다는 의미를 체득하였습니다.";
+// 실습시간 1/2/3 선택 옵션
+const TIME_OPTIONS = {
+  '1': { time: '09시 00분 ~ 18시 00분', hours: '8시간' },
+  '2': { time: '09시 00분 ~ 14시 00분', hours: '4시간' },
+  '3': { time: '14시 00분 ~ 18시 00분', hours: '4시간' }
+};
+
+const FALLBACK_CONTENT = "장애인 거주시설 이용인의 건강 증진과 쾌적한 거주 환경 조성을 위해 위생 청소 및 환경 정비를 실시하였습니다.\n이용인 개별 특성을 파악하며 일상생활 지원 및 정서적 교감을 도모하였습니다.\n청소 및 위생 관리 과정을 통해 환경 정비가 이용인의 삶의 질과 직결된다는 점을 체득하였습니다.";
 const FALLBACK_REVIEW = "환경 청결 유지가 주민 건강 및 쾌적한 일상생활과 직결된다는 점을 깊이 체감하였습니다.\n정기적인 위생 관리를 통해 감염 사고를 예방하고 주거 안정을 도모하는 실무 역량을 길렀습니다.\n주민 개별 특성에 부응하는 맞춤형 환경 케어 수순을 익히는 계기가 되었습니다.\n향후 주민의 존엄성과 안전을 보장하는 전문적 지원을 지속해서 실천하겠습니다.";
 
 async function callGemini(prompt) {
@@ -101,9 +108,9 @@ async function callGemini(prompt) {
 }
 
 async function expandContent(keyword) {
-  const prompt = `다음 키워드를 바탕으로 장애인 거주시설 사회복지 실습일지의 "실습내용" 항목을 작성해줘. 
-키워드의 개수나 형식과 관계없이, 격식 있고 전문적인 문장으로 **정확히 5줄(5문장)**을 작성해줘. 
-시간대(예: 09:00~)나 번호, 기호(- 등)는 절대로 붙이지 말고, 순수 문장만 줄바꿈으로 구분해서 5줄만 출력해.
+  const prompt = `다음은 장애인 거주시설 사회복지 실습일지의 "실습내용" 작성을 위한 키워드다. 키워드는 쉼표(,)로 여러 개가 나열되어 있을 수 있다.
+키워드가 몇 개든 관계없이, 격식 있고 전문적인 문장으로 **정확히 3줄(3문장)**만 작성해줘. 각 문장은 최대한 간결하고 짧게 써줘.
+시간대(예: 09:00~)나 번호, 기호(- 등)는 절대로 붙이지 말고, 순수 문장만 줄바꿈으로 구분해서 3줄만 출력해.
 키워드: ${keyword}`;
   try {
     const rawText = await callGemini(prompt);
@@ -111,7 +118,7 @@ async function expandContent(keyword) {
       console.log("⚠️  [실습내용] Gemini 응답 없음 → 예시 문구로 대체됨. 반드시 직접 수정해주세요.");
       return { text: FALLBACK_CONTENT, isFallback: true };
     }
-    const { text } = formatExactLines(rawText.trim(), 5, '실습내용');
+    const { text } = formatExactLines(rawText.trim(), 3, '실습내용');
     return { text, isFallback: false };
   } catch (err) {
     console.log(`⚠️  [실습내용] API 호출 실패 (${err.message}) → 예시 문구로 대체됨. 반드시 직접 수정해주세요.`);
@@ -148,7 +155,6 @@ function safeCellStart(table, r, c) {
 
 (async () => {
   const defaultDate = getTodayKorean();
-  const defaultTime = "09시 00분 ~ 18시 00분";
   const defaultDept = "애명다온빌 생활관";
 
   console.log("=== 사회복지 실습일지 자동 생성 프로그램 ===");
@@ -157,20 +163,25 @@ function safeCellStart(table, r, c) {
   const date = await ask(`실습날짜 (예: ${defaultDate}, 엔터=오늘): `, defaultDate);
   checkCancel(date);
 
-  const time = await ask(`실습시간 (예: ${defaultTime}, 엔터=기본값): `, defaultTime);
-  checkCancel(time);
+  console.log("\n실습시간 선택");
+  console.log("  1) 09시 00분 ~ 18시 00분 (8시간)");
+  console.log("  2) 09시 00분 ~ 14시 00분 (4시간)");
+  console.log("  3) 14시 00분 ~ 18시 00분 (4시간)");
+  const timeChoice = await ask("번호 선택 (엔터=1): ", "1");
+  checkCancel(timeChoice);
+  const timeInfo = TIME_OPTIONS[timeChoice.trim()] || TIME_OPTIONS['1'];
 
-  const dept = await ask(`실습부서명 (예: ${defaultDept}, 엔터=기본값): `, defaultDept);
+  const dept = await ask(`\n실습부서명 (예: ${defaultDept}, 엔터=기본값): `, defaultDept);
   checkCancel(dept);
 
-  const contentKeyword = await ask("\n실습내용 키워드 입력: ", "");
+  const contentKeyword = await ask("\n실습내용 키워드 입력 (여러 개면 쉼표(,)로 구분): ", "");
   checkCancel(contentKeyword);
-  console.log("실습내용 5줄 생성 중...");
+  console.log("실습내용 3줄 생성 중...");
   let { text: content } = await expandContent(contentKeyword);
-  console.log(`\n[생성된 실습내용 (5줄)]\n${content}\n`);
+  console.log(`\n[생성된 실습내용 (3줄)]\n${content}\n`);
   const editContent = await ask("이대로 쓸까요? 수정하려면 직접 입력, 그대로면 Enter: ", "");
   checkCancel(editContent);
-  if (editContent.trim() !== "") content = formatExactLines(editContent, 5, '실습내용(수동)').text;
+  if (editContent.trim() !== "") content = formatExactLines(editContent, 3, '실습내용(수동)').text;
 
   const reviewKeyword = await ask("\n소감/자기평가 키워드 입력: ", "");
   checkCancel(reviewKeyword);
@@ -183,7 +194,7 @@ function safeCellStart(table, r, c) {
 
   console.log("\n=== 최종 확인 ===");
   console.log(`날짜: ${date}`);
-  console.log(`시간: ${time}`);
+  console.log(`시간: ${timeInfo.time} (${timeInfo.hours})`);
   console.log(`부서명: ${dept}`);
   console.log(`실습내용:\n${content}`);
   console.log(`소감:\n${review}`);
@@ -203,9 +214,22 @@ function safeCellStart(table, r, c) {
   const createdDoc = createDoc(docTitle);
   const documentId = createdDoc.documentId;
 
+  // A4 용지 크기 명시 설정 (595.3pt x 841.9pt = A4)
+  console.log("용지 크기(A4) 설정 중...");
+  runBatchUpdate(documentId, [
+    {
+      updateDocumentStyle: {
+        documentStyle: {
+          pageSize: { width: { magnitude: 595.3, unit: 'PT' }, height: { magnitude: 841.9, unit: 'PT' } }
+        },
+        fields: 'pageSize'
+      }
+    }
+  ]);
+
   console.log("표 생성 중...");
   runBatchUpdate(documentId, [
-    { insertTable: { rows: 7, columns: 4, location: { index: 1 } } }
+    { insertTable: { rows: 7, columns: 5, location: { index: 1 } } }
   ]);
 
   let body = getDoc(documentId);
@@ -214,12 +238,47 @@ function safeCellStart(table, r, c) {
 
   console.log("셀 병합 중...");
   runBatchUpdate(documentId, [
-    { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 0, columnIndex: 0 }, rowSpan: 1, columnSpan: 4 } } },
-    { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 1, columnIndex: 1 }, rowSpan: 1, columnSpan: 3 } } },
-    // 2행(실습시간/실습부서명)은 서명 행처럼 4칸 그대로 사용 — 병합하지 않음
-    { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 3, columnIndex: 1 }, rowSpan: 1, columnSpan: 3 } } },
-    { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 4, columnIndex: 1 }, rowSpan: 1, columnSpan: 3 } } },
-    { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 5, columnIndex: 1 }, rowSpan: 1, columnSpan: 3 } } }
+    { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 0, columnIndex: 0 }, rowSpan: 1, columnSpan: 5 } } },
+    { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 1, columnIndex: 1 }, rowSpan: 1, columnSpan: 4 } } },
+    // 2행(실습시간/시수/실습부서명)은 5칸 그대로, 병합하지 않음
+    { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 3, columnIndex: 1 }, rowSpan: 1, columnSpan: 4 } } },
+    { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 4, columnIndex: 1 }, rowSpan: 1, columnSpan: 4 } } },
+    { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 5, columnIndex: 1 }, rowSpan: 1, columnSpan: 4 } } },
+    // 실습지도자 + 서명란은 나누지 않고 하나로 병합
+    { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 6, columnIndex: 2 }, rowSpan: 1, columnSpan: 3 } } }
+  ]);
+
+  // 왼쪽 라벨 칸(0열) 폭 줄이기 — 내용 칸에 공간 더 확보
+  console.log("열 너비 조정 중...");
+  runBatchUpdate(documentId, [
+    {
+      updateTableColumnProperties: {
+        tableStartLocation: tableStart,
+        columnIndices: [0],
+        tableColumnProperties: { widthType: 'FIXED_WIDTH', width: { magnitude: 65, unit: 'PT' } }
+      }
+    }
+  ]);
+
+  // 실습내용/소감 행 높이 늘리기 (A4 양식 참고 - 여백 있는 형태)
+  console.log("행 높이 조정 중...");
+  runBatchUpdate(documentId, [
+    {
+      updateTableRowStyle: {
+        tableStartLocation: tableStart,
+        rowIndices: [3],
+        tableRowStyle: { minRowHeight: { magnitude: 140, unit: 'PT' } },
+        fields: 'minRowHeight'
+      }
+    },
+    {
+      updateTableRowStyle: {
+        tableStartLocation: tableStart,
+        rowIndices: [4],
+        tableRowStyle: { minRowHeight: { magnitude: 100, unit: 'PT' } },
+        fields: 'minRowHeight'
+      }
+    }
   ]);
 
   body = getDoc(documentId);
@@ -228,11 +287,12 @@ function safeCellStart(table, r, c) {
 
   const header = "실 습 일 지";
   const rowsData = [
-    [{ text: header, bold: true, center: true }],
+    [{ text: header, bold: true, center: true, fontSize: 22 }],
     [{ text: "실습날짜", bold: true }, { text: date, bold: false }],
     [
       { text: "실습시간", bold: true },
-      { text: time, bold: false },
+      { text: timeInfo.time, bold: false },
+      { text: timeInfo.hours, bold: false },
       { text: "실습부서명", bold: true },
       { text: dept, bold: false }
     ],
@@ -242,8 +302,7 @@ function safeCellStart(table, r, c) {
     [
       { text: "실습생", bold: true },
       { text: "김호한 (서명 또는 인)", bold: false },
-      { text: "실습지도자", bold: true },
-      { text: "(서명 또는 인)", bold: false }
+      { text: "실습지도자                    (서명 또는 인)", bold: false }
     ]
   ];
 
@@ -256,12 +315,17 @@ function safeCellStart(table, r, c) {
   items.sort((a, b) => b.idx - a.idx);
 
   const fillRequests = [];
-  items.forEach(({ idx, text, bold, center }) => {
+  items.forEach(({ idx, text, bold, center, fontSize }) => {
     const validText = (text && text.length > 0) ? text : " ";
     fillRequests.push({ insertText: { location: { index: idx }, text: validText } });
     if (bold) {
       fillRequests.push({
         updateTextStyle: { range: { startIndex: idx, endIndex: idx + validText.length }, textStyle: { bold: true }, fields: "bold" }
+      });
+    }
+    if (fontSize) {
+      fillRequests.push({
+        updateTextStyle: { range: { startIndex: idx, endIndex: idx + validText.length }, textStyle: { fontSize: { magnitude: fontSize, unit: 'PT' } }, fields: "fontSize" }
       });
     }
     if (center) {
