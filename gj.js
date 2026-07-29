@@ -3,6 +3,12 @@ const readline = require('readline');
 const fs = require('fs');
 const path = require('path');
 
+// Ctrl+C를 누르면 언제든 안전하게 취소하고 종료
+process.on('SIGINT', () => {
+  console.log('\n\n🛑 취소되었습니다. 문서를 만들지 않고 종료합니다.');
+  process.exit(0);
+});
+
 const COUNTER_FILE = path.join(__dirname, 'journal_counter.txt');
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -13,6 +19,15 @@ const ask = (q, defaultValue) => new Promise((resolve) => {
     resolve(trimmed === '' ? defaultValue : trimmed);
   });
 });
+
+// "취소"라고 직접 입력해도 문서 생성 전에 안전하게 종료 (Ctrl+C의 보조 수단)
+function checkCancel(input) {
+  if (input.trim() === '취소') {
+    console.log('\n🛑 취소되었습니다. 문서를 만들지 않고 종료합니다.');
+    rl.close();
+    process.exit(0);
+  }
+}
 
 function runBatchUpdate(documentId, requestsArr) {
   const args = [
@@ -135,23 +150,40 @@ function safeCellStart(table, r, c) {
   const defaultDate = getTodayKorean();
   const defaultDept = "301호 (거주지원)";
 
-  console.log("=== 사회복지 실습일지 자동 생성 프로그램 ===\n");
+  console.log("=== 사회복지 실습일지 자동 생성 프로그램 ===");
+  console.log("(Ctrl+C 를 누르거나 '취소'라고 입력하면 언제든 문서를 만들지 않고 종료됩니다)\n");
+
   const date = await ask(`실습날짜 (예: ${defaultDate}, 엔터=오늘): `, defaultDate);
+  checkCancel(date);
+
   const dept = await ask(`실습부서명 (예: ${defaultDept}, 엔터=기본값): `, defaultDept);
+  checkCancel(dept);
 
   const contentKeyword = await ask("\n실습내용 키워드 입력: ", "");
+  checkCancel(contentKeyword);
   console.log("실습내용 5줄 생성 중...");
   let { text: content } = await expandContent(contentKeyword);
   console.log(`\n[생성된 실습내용 (5줄)]\n${content}\n`);
   const editContent = await ask("이대로 쓸까요? 수정하려면 직접 입력, 그대로면 Enter: ", "");
+  checkCancel(editContent);
   if (editContent.trim() !== "") content = formatExactLines(editContent, 5, '실습내용(수동)').text;
 
   const reviewKeyword = await ask("\n소감/자기평가 키워드 입력: ", "");
+  checkCancel(reviewKeyword);
   console.log("소감 4줄 생성 중...");
   let { text: review } = await expandReview(reviewKeyword);
   console.log(`\n[생성된 소감 및 자기평가 (4줄)]\n${review}\n`);
   const editReview = await ask("이대로 쓸까요? 수정하려면 직접 입력, 그대로면 Enter: ", "");
+  checkCancel(editReview);
   if (editReview.trim() !== "") review = formatExactLines(editReview, 4, '소감(수동)').text;
+
+  console.log("\n=== 최종 확인 ===");
+  console.log(`날짜: ${date}`);
+  console.log(`부서명: ${dept}`);
+  console.log(`실습내용:\n${content}`);
+  console.log(`소감:\n${review}`);
+  const finalConfirm = await ask("\n이대로 문서를 만들까요? (Enter=예, 취소=취소): ", "예");
+  checkCancel(finalConfirm);
 
   rl.close();
 
