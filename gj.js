@@ -148,13 +148,17 @@ function safeCellStart(table, r, c) {
 
 (async () => {
   const defaultDate = getTodayKorean();
-  const defaultDept = "301호 (거주지원)";
+  const defaultTime = "09시 00분 ~ 18시 00분";
+  const defaultDept = "애명다온빌 생활관";
 
   console.log("=== 사회복지 실습일지 자동 생성 프로그램 ===");
   console.log("(Ctrl+C 를 누르거나 '취소'라고 입력하면 언제든 문서를 만들지 않고 종료됩니다)\n");
 
   const date = await ask(`실습날짜 (예: ${defaultDate}, 엔터=오늘): `, defaultDate);
   checkCancel(date);
+
+  const time = await ask(`실습시간 (예: ${defaultTime}, 엔터=기본값): `, defaultTime);
+  checkCancel(time);
 
   const dept = await ask(`실습부서명 (예: ${defaultDept}, 엔터=기본값): `, defaultDept);
   checkCancel(dept);
@@ -179,6 +183,7 @@ function safeCellStart(table, r, c) {
 
   console.log("\n=== 최종 확인 ===");
   console.log(`날짜: ${date}`);
+  console.log(`시간: ${time}`);
   console.log(`부서명: ${dept}`);
   console.log(`실습내용:\n${content}`);
   console.log(`소감:\n${review}`);
@@ -211,7 +216,7 @@ function safeCellStart(table, r, c) {
   runBatchUpdate(documentId, [
     { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 0, columnIndex: 0 }, rowSpan: 1, columnSpan: 4 } } },
     { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 1, columnIndex: 1 }, rowSpan: 1, columnSpan: 3 } } },
-    { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 2, columnIndex: 1 }, rowSpan: 1, columnSpan: 3 } } },
+    // 2행(실습시간/실습부서명)은 서명 행처럼 4칸 그대로 사용 — 병합하지 않음
     { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 3, columnIndex: 1 }, rowSpan: 1, columnSpan: 3 } } },
     { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 4, columnIndex: 1 }, rowSpan: 1, columnSpan: 3 } } },
     { mergeTableCells: { tableRange: { tableCellLocation: { tableStartLocation: tableStart, rowIndex: 5, columnIndex: 1 }, rowSpan: 1, columnSpan: 3 } } }
@@ -225,7 +230,12 @@ function safeCellStart(table, r, c) {
   const rowsData = [
     [{ text: header, bold: true, center: true }],
     [{ text: "실습날짜", bold: true }, { text: date, bold: false }],
-    [{ text: "실습부서명", bold: true }, { text: dept, bold: false }],
+    [
+      { text: "실습시간", bold: true },
+      { text: time, bold: false },
+      { text: "실습부서명", bold: true },
+      { text: dept, bold: false }
+    ],
     [{ text: "실습 내용\n(과제)", bold: true }, { text: content, bold: false }],
     [{ text: "소감 및\n자기평가", bold: true }, { text: review, bold: false }],
     [{ text: "첨부자료", bold: true }, { text: " ", bold: false }],
