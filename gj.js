@@ -10,6 +10,8 @@ process.on('SIGINT', () => {
 });
 
 const COUNTER_FILE = path.join(__dirname, 'journal_counter.txt');
+const HOURS_LOG_FILE = path.join(__dirname, 'practicum_hours.json');
+const TOTAL_TARGET_HOURS = 160;
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
@@ -74,6 +76,45 @@ function getNextCount() {
   return next;
 }
 
+// ===== 누계 실습시간 관리 =====
+// practicum_hours.json에 { "20260627": 8, "20260703": 4, ... } 형태로 날짜별 시간을 저장.
+// 같은 날짜(YYYYMMDD)가 이미 있으면 다시 더하지 않아서 중복 반영을 막음.
+function loadHoursLog() {
+  if (!fs.existsSync(HOURS_LOG_FILE)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(HOURS_LOG_FILE, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function saveHoursLog(log) {
+  fs.writeFileSync(HOURS_LOG_FILE, JSON.stringify(log, null, 2));
+}
+
+function sumHours(log) {
+  return Object.values(log).reduce((sum, h) => sum + h, 0);
+}
+
+// 아직 저장하지 않고 "이 날짜를 반영하면 누계가 얼마가 되는지"만 미리 계산 (취소 대비)
+function previewCumulative(dateDigits, hours) {
+  const log = loadHoursLog();
+  const alreadyRecorded = dateDigits ? Object.prototype.hasOwnProperty.call(log, dateDigits) : false;
+  const total = sumHours(log) + (alreadyRecorded ? 0 : hours);
+  return { total, alreadyRecorded };
+}
+
+// 문서를 실제로 생성하기 직전에 호출해서 로그 파일에 확정 반영
+function commitHours(dateDigits, hours) {
+  const log = loadHoursLog();
+  const alreadyRecorded = dateDigits ? Object.prototype.hasOwnProperty.call(log, dateDigits) : false;
+  if (dateDigits && !alreadyRecorded) {
+    log[dateDigits] = hours;
+    saveHoursLog(log);
+  }
+  return { total: sumHours(log), alreadyRecorded };
+}
+
 function getTodayKorean() {
   const days = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
   const d = new Date();
@@ -89,9 +130,9 @@ function toDateDigits(dateStr) {
 
 // 실습시간 1/2/3 선택 옵션
 const TIME_OPTIONS = {
-  '1': { time: '09시 00분 ~ 18시 00분', hours: '8시간' },
-  '2': { time: '09시 00분 ~ 14시 00분', hours: '4시간' },
-  '3': { time: '14시 00분 ~ 18시 00분', hours: '4시간' }
+  '1': { time: '09시 00분 ~ 18시 00분', hours: '8시간', hoursNum: 8 },
+  '2': { time: '09시 00분 ~ 14시 00분', hours: '4시간', hoursNum: 4 },
+  '3': { time: '14시 00분 ~ 18시 00분', hours: '4시간', hoursNum: 4 }
 };
 
 const FALLBACK_CONTENT = "장애인 거주시설 이용인의 건강 증진과 쾌적한 거주 환경 조성을 목적으로 위생 청소 및 환경 정비를 실시하였습니다.\n이용인들의 주거 공간을 점검하고 먼지 제거와 환기를 진행하여 감염병 예방을 위한 청결을 유지하였습니다.\n자립 생활 능력 향상을 위해 이용인이 스스로 개인 공간을 청정하게 유지하도록 맞춤형 청소 활동을 지원하였습니다.\n공용 공간의 집기류를 소독하고 바닥의 이물질을 제거하여 안전한 시설 환경을 조성하였습니다.\n청소 및 위생 관리 과정을 통해 환경 정비가 이용인의 삶의 질 향상과 직결된다는 의미를 체득하였습니다.";
@@ -187,6 +228,11 @@ function safeCellStart(table, r, c) {
   checkCancel(timeChoice);
   const timeInfo = TIME_OPTIONS[timeChoice.trim()] || TIME_OPTIONS['1'];
 
+  // 날짜 기준으로 누계 실습시간 미리 계산해서 보여줌 (아직 파일에 저장은 안 함)
+  const dateDigitsForLog = toDateDigits(date);
+  const preview = previewCumulative(dateDigitsForLog, timeInfo.hoursNum);
+  console.log(`\n📊 예상 누계 실습시간: ${preview.total}시간 / ${TOTAL_TARGET_HOURS}시간${preview.alreadyRecorded ? '  (이 날짜는 이미 기록되어 있어 중복 반영되지 않습니다)' : ''}`);
+
   const dept = await ask(`\n실습부서명 (예: ${defaultDept}, 엔터=기본값): `, defaultDept);
   checkCancel(dept);
 
@@ -214,6 +260,7 @@ function safeCellStart(table, r, c) {
   console.log(`부서명: ${dept}`);
   console.log(`실습내용:\n${content}`);
   console.log(`소감:\n${review}`);
+  console.log(`누계 실습시간: ${preview.total}시간 / ${TOTAL_TARGET_HOURS}시간`);
   const finalConfirm = await ask("\n이대로 문서를 만들까요? (Enter=예, 취소=취소): ", "예");
   checkCancel(finalConfirm);
 
@@ -222,6 +269,11 @@ function safeCellStart(table, r, c) {
   const episodeNo = getNextCount();
 
   const dateDigits = toDateDigits(date);
+  // 여기서 실제로 누계 실습시간 로그 파일에 확정 반영 (취소된 경우엔 여기까지 오지 않으므로 기록되지 않음)
+  const { total: cumulativeHours } = commitHours(dateDigits, timeInfo.hoursNum);
+  const progressPercent = Math.round((cumulativeHours / TOTAL_TARGET_HOURS) * 1000) / 10;
+  const attachmentText = `누계 실습시간: ${cumulativeHours}시간 / ${TOTAL_TARGET_HOURS}시간 (진행률 ${progressPercent}%)`;
+
   const docTitle = dateDigits
     ? `실습일지_${episodeNo}회차_${dateDigits}`
     : `실습일지_${episodeNo}회차_${date.replace(/\s+/g, '_')}`;
@@ -319,7 +371,7 @@ function safeCellStart(table, r, c) {
     ],
     [{ text: "실습 내용\n(과제)", bold: true }, { text: content, bold: false }],
     [{ text: "소감 및\n자기평가", bold: true }, { text: review, bold: false }],
-    [{ text: "첨부자료", bold: true }, { text: " ", bold: false }],
+    [{ text: "첨부자료", bold: true }, { text: attachmentText, bold: false }],
     [
       { text: "실습생", bold: true },
       { text: "김호한 (서명 또는 인)", bold: false },
@@ -360,5 +412,6 @@ function safeCellStart(table, r, c) {
   runBatchUpdate(documentId, fillRequests);
 
   console.log(`\n✅ 완료! 저장 제목: ${docTitle}`);
+  console.log(`📊 ${attachmentText}`);
   console.log(`🔗 링크: https://docs.google.com/document/d/${documentId}/edit`);
 })();
